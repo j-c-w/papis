@@ -41,6 +41,7 @@ you will not be able to parse the publisher through a search.
 """
 import os
 import logging
+import multiprocessing
 
 import whoosh
 import whoosh.index
@@ -121,12 +122,17 @@ class Database(papis.database.base.Database):
         )
         qp.add_plugin(whoosh.qparser.FuzzyTermPlugin())
         query = qp.parse(query_string)
+
+        nc = multiprocessing.cpu_count()
+        loading_pool = multiprocessing.Pool(2 * nc)
+
         with index.searcher() as searcher:
             results = searcher.search(query, limit=None)
             self.logger.debug(results)
-            documents = [
-                papis.document.from_folder(r.get(self.get_id_key()))
-                for r in results]
+            id_key = self.get_id_key()
+            # Convert to dicts so these can be pickled and then distributed.
+            results = [(dict(result), id_key) for result in results]
+            documents = loading_pool.map(document_from_folder, results)
         return documents
 
     def get_all_query_string(self) -> str:
@@ -320,3 +326,9 @@ class Database(papis.database.base.Database):
             fields.update({field: TEXT(stored=True)})
         # self.logger.debug('Schema prototype: {}'.format(fields))
         return fields
+
+
+def document_from_folder(args: (Dict, str)) -> papis.document.Document:
+    folder = args[0]
+    id_key = args[1]
+    return papis.document.from_folder(folder.get(id_key))
