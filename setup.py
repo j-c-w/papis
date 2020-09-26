@@ -53,7 +53,6 @@ setup(
     license=papis.__license__,
     url='https://github.com/papis/papis',
     install_requires=[
-        "requests>=2.11.1",
         "filetype>=1.0.1",
         "pyparsing>=2.2.0",
         "configparser>=3.0.0",
